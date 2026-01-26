@@ -1,6 +1,7 @@
 from django.db import models
 
 class Course(models.Model):
+    owner = models.ForeignKey('users.User', on_delete=models.CASCADE, verbose_name='Владелец')
     name = models.CharField(max_length=100, verbose_name='Название')
     preview = models.ImageField(upload_to='courses/', verbose_name='Превью', blank=True, null=True)
     description = models.TextField(verbose_name='Описание')
@@ -9,6 +10,7 @@ class Course(models.Model):
         return self.name
 
 class Lesson(models.Model):
+    owner = models.ForeignKey('users.User', on_delete=models.CASCADE, verbose_name='Владелец')
     name = models.CharField(max_length=100, verbose_name='Название')
     description = models.TextField(verbose_name='Описание')
     preview = models.ImageField(upload_to='lessons/', verbose_name='Превью', blank=True, null=True)
