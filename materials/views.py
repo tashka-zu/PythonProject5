@@ -2,10 +2,8 @@ from rest_framework import viewsets, generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-
-from services.stripe_service import create_product, create_price, create_checkout_session
 from users.permissions import IsModerator, IsOwner
-from .models import Course, Lesson, Subscription, Payment
+from .models import Course, Lesson, Subscription
 from .paginators import CustomPagination
 from .serializers import CourseSerializer, LessonSerializer
 
@@ -68,27 +66,3 @@ class SubscriptionAPIView(APIView):
             message = 'Подписка добавлена'
 
         return Response({"message": message}, status=status.HTTP_200_OK)
-
-
-class CreatePaymentView(APIView):
-    def post(self, request, *args, **kwargs):
-        course_id = request.data.get('course_id')
-        amount = request.data.get('amount')
-
-        # Создание продукта и цены в Stripe
-        product = create_product(f"Course {course_id}")
-        price = create_price(product.id, amount)
-
-        # Создание сессии для оплаты
-        session = create_checkout_session(price.id)
-
-        # Сохранение платежа в базе данных
-        payment = Payment.objects.create(
-            user=request.user,
-            course_id=course_id,
-            amount=amount,
-            stripe_session_id=session.id,
-            payment_link=session.url
-        )
-
-        return Response({'payment_url': session.url}, status=status.HTTP_201_CREATED)
