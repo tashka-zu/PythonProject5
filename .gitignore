@@ -182,3 +182,7 @@ __pycache__/
 # Игнорировать скачанные библиотеки (Bootstrap)
 bootstrap.bundle.js
 bootstrap.bundle.js.map
+
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
