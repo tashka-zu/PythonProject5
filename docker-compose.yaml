@@ -1,48 +1,43 @@
-version: '3.9'
-
 services:
   backend:
     build: .
     command: >
       bash -c "python manage.py migrate &&
                python manage.py runserver 0.0.0.0:8000"
-    env_file:
-      - .env
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "8000:8000"
     volumes:
       - .:/app
 
   db:
     image: postgres:16.0
-    env_file:
-      - .env
-    expose:
-      - "5432"
+    env_file: .env
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 30s
       timeout: 10s
       retries: 5
 
   redis:
     image: redis:7.2.5
+    ports:
+      - "6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
-    expose:
-      - "6379"
 
   celery:
     build: .
     command: celery -A ${DJANGO_CELERY_APP} worker --loglevel=info
-    env_file:
-      - .env
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy
@@ -56,8 +51,7 @@ services:
   celery-beat:
     build: .
     command: celery -A ${DJANGO_CELERY_APP} beat --loglevel=info
-    env_file:
-      - .env
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy
@@ -70,4 +64,3 @@ services:
 
 volumes:
   postgres_data:
-
