@@ -1,74 +1,56 @@
-version: '3.9'
+name: build
 
-services:
-  web:
-    build: .
-    command: >
-      sh -c "python manage.py migrate && 
-             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --timeout 600"
-    volumes:
-      - .:/code
-      - static_volume:/code/static
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    env_file:
-      - ./.env
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - develop
 
-  db:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    env_file:
-      - ./.env
-    expose:
-      - "5432"
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
 
-  redis:
-    image: redis:7.2.5
-    command: ["redis-server", "--appendonly", "yes"]
-    expose:
-      - "6379"
+    steps:
 
-  celery:
-    build: .
-    command: celery -A config worker -l info -P solo
-    env_file:
-      - .env
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    volumes:
-      - .:/app
+      - name: Force cleanup Python cache and fix permissions
+        run: |
+          sudo rm -rf __pycache__ || true
+          sudo chown -R $(whoami):$(whoami) .
 
-  celery-beat:
-    build: .
-    command: celery -A config beat --loglevel=info
-    env_file:
-      - .env
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    volumes:
-      - .:/app
+      - name: Checkout repository
+        uses: actions/checkout@v5
 
-volumes:
-  postgres_data:
-  static_volume:
+      - name: Debug user and permissions
+        run: |
+          echo "==== Debug Info ===="
+          whoami
+          id
+          groups
+          ls -l /var/run/docker.sock
+          docker ps || echo "Docker access failed"
+          docker compose version || echo "Compose failed"
+
+      - name: Create .env from secret
+        run: |
+          echo "==== Generating .env ===="
+          cat << 'EOF' > .env
+          ${{ secrets.DOTENV }}
+          EOF
+          ls -la .env
+
+      - name: Build & Up Docker Compose
+        run: |
+          echo "==== Docker Compose Build & Up ===="
+          docker compose down --remove-orphans
+          docker compose build --no-cache
+          docker compose --env-file .env -f docker-compose.yml up -d
+          docker compose ps
+
+      - name: Cleanup old Docker data
+        if: always()
+        run: |
+          echo "==== Cleaning up unused Docker images and cache ===="
+          docker image prune -f
+    
